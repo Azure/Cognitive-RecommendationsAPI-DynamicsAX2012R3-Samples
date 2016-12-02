@@ -1,0 +1,1552 @@
+﻿Exportfile for AOT version 1.0 or later
+Formatversion: 1
+
+***Element: SPV
+
+; Microsoft Dynamics AX PRIVILEGE : CallCenterRecommendationsManage unloaded
+; --------------------------------------------------------------------------------
+  VERSION 1
+  
+  PRIVILEGE #CallCenterRecommendationsManage
+    PROPERTIES
+      Name                #CallCenterRecommendationsManage
+      Label               #@CIS1
+      Origin              #{80877702-8AAA-4A45-9583-316272F06453}
+    ENDPROPERTIES
+    
+    ENTRYPOINTS #Entry Points
+      ENTRYPOINT #CortanaRecommendationsForm
+        PROPERTIES
+          Name                #CortanaRecommendationsForm
+          ObjectType          #MenuItemDisplay
+          ObjectName          #CortanaRecommendationsForm
+          AccessLevel         #Delete
+        ENDPROPERTIES
+        
+      ENDENTRYPOINT
+      
+    ENTRYPOINT #CortanaRecommendationsFormPart
+      PROPERTIES
+        Name                #CortanaRecommendationsFormPart
+        ObjectType          #MenuItemDisplay
+        ObjectName          #CortanaRecommendationsFormPart
+        AccessLevel         #Delete
+      ENDPROPERTIES
+      
+    ENDENTRYPOINT
+    
+  ENTRYPOINT #CortanaRecommendationsListPage
+    PROPERTIES
+      Name                #CortanaRecommendationsListPage
+      ObjectType          #MenuItemDisplay
+      ObjectName          #CortanaRecommendationsListPage
+      AccessLevel         #Delete
+    ENDPROPERTIES
+    
+  ENDENTRYPOINT
+  
+ENDENTRYPOINTS
+
+PERMISSIONSET #Permissions
+  PROPERTIES
+  ENDPROPERTIES
+  
+  TABLES #Tables
+  ENDTABLES
+  
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+FORMS #Forms
+ENDFORMS
+
+ENDPERMISSIONSET
+
+ENDPRIVILEGE
+
+
+***Element: FPA
+
+; Microsoft Dynamics AX Form Part: CortanaRecommendationsFormPart unloaded
+; --------------------------------------------------------------------------------
+VERSION 1
+
+FORMPART #CortanaRecommendationsFormPart
+  PROPERTIES
+    Name                #CortanaRecommendationsFormPart
+    Caption             #@CIS2
+    Form                #CortanaRecommendationsListPage
+    Origin              #{2FA56CE7-9C3C-4979-A1A6-422B2F589E4C}
+  ENDPROPERTIES
+  
+ENDFORMPART
+
+
+***Element: CLS
+
+; Microsoft Dynamics AX Class: CortanaAppUtils unloaded
+; --------------------------------------------------------------------------------
+  CLSVERSION 1
+  
+  CLASS #CortanaAppUtils
+    PROPERTIES
+      Name                #CortanaAppUtils
+      Origin              #{9E7128B7-DA3F-4274-BB8B-4C6F8CEDCD4C}
+    ENDPROPERTIES
+    
+    METHODS
+      SOURCE #classDeclaration
+        #class CortanaAppUtils
+        #{
+        #}
+      ENDSOURCE
+      SOURCE #getRecommendationsForSalesOrder
+        #public static void getRecommendationsForSalesOrder(SalesTable _salesTable, RecommenderModelName _modelName)
+        #{
+        #    CLRObject/*Microsoft.CortanaIntelligence.RecommendationsServiceClient.ModelAuth*/ modelAuth;
+        #    CLRObject/*Microsoft.CortanaIntelligence.RecommendationsServiceClient.RecommendationsClient*/ recommendationsClient;
+        #    CLRObject/*Microsoft.CortanaIntelligence.RecommendationsServiceClient.CognitiveServices.Models.RecommendedItemSetInfo*/ itemSetInfo;
+        #    CLRObject/*Microsoft.CortanaIntelligence.RecommendationsServiceClient.CognitiveServices.Models.RecommendedItemInfo*/ itemInfo;
+        #    CLRObject/*Microsoft.CortanaIntelligence.TelemetryWrapper.AXTelemetryClient*/ axTelemetryClient;
+        #    System.Exception            ex;
+        #    CortanaManagementParameters cortanaParameters;
+        #    CortanaOrderUpscaleList upScaleList, upScaleListLocal;
+        #    CortanaSageModels   model;
+        #    SalesLine   salesLine;
+        #    DirPartyRecId   party;
+        #    InventTable inventTable;
+        #
+        #    str         productRecIdStr, reasoning;
+        #    real        rating;
+        #    boolean     itemsAdded = false;
+        #    int         productsStrLen;
+        #    str         errorMessage;
+        #    RefRecId    productRefRecId;
+        #    ClrObject   nullableRatingType, recommendedProductsEnumerator, recommendedProducts,
+        #                itemInfoList, itemInfoListEnumerator, reasoningClrObj, reasoningEnumerator;
+        #    System.Text.StringBuilder productsListBuilder = new System.Text.StringBuilder();
+        #    System.Text.StringBuilder reasoningListBuilder = new System.Text.StringBuilder();
+        #    System.String productsList;
+        #    System.Int64 buildId;
+        #
+        #
+        #    ;
+        #
+        #    cortanaParameters = CortanaManagementParameters::find();
+        #    if(cortanaParameters == null || cortanaParameters.CognitiveServicesAccountKey == '' || cortanaParameters.CognitiveServicesAccountName == '')
+        #    {
+        #        throw error("@SYP4863126");
+        #    }
+        #
+        #    model = CortanaSageModels::find(_modelName);
+        #    if(model.RecId == 0)
+        #    {
+        #        throw error(strFmt("@SYP4863185", _modelName));
+        #    }
+        #
+        #    if(model.ActiveBuildId == '' || model.ActiveBuildId == '-1')
+        #    {
+        #        throw error(strFmt("@SYP4863186", _modelName));
+        #    }
+        #
+        #    try
+        #    {
+        #        // Telemetry client
+        #        axTelemetryClient = CortanaUtils::getTelemetryClient();
+        #
+        #        if(_salesTable)
+        #        {
+        #            // DirParty reference
+        #            party = CustTable::find(_salesTable.CustAccount).Party;
+        #
+        #            // prepare the input list from current order lines
+        #            while select ItemId from salesLine
+        #                where salesLine.SalesId == _salesTable.SalesId
+        #                && salesLine.QtyOrdered > 0
+        #            {
+        #                inventTable = InventTable::find(salesLine.ItemId);
+        #                if(inventTable.RecId != 0)
+        #                {
+        #                    productsListBuilder.Append(int642str(inventTable.Product));
+        #                    productsListBuilder.Append(',');
+        #                    itemsAdded = true;
+        #                }
+        #            }
+        #
+        #            // No qualifying items in the sales order. Return.
+        #            if(!itemsAdded)
+        #            {
+        #                return;
+        #            }
+        #            else
+        #            {
+        #                productsStrLen = productsListBuilder.get_Length();
+        #                productsListBuilder.Remove(productsStrLen-1, 1);
+        #                productsList = productsListBuilder.ToString();
+        #                buildId = str2int64(model.ActiveBuildId);
+        #            }
+        #
+        #            // Initialize the client.
+        #            modelAuth = new CLRObject('Microsoft.CortanaIntelligence.RecommendationsServiceClient.ModelAuth', cortanaParameters.CognitiveServicesAccountName, cortanaParameters.CognitiveServicesAccountKey);
+        #            recommendationsClient = new CLRObject('Microsoft.CortanaIntelligence.RecommendationsServiceClient.RecommendationsClient', modelAuth);
+        #
+        #            // Get the product recommendations
+        #            recommendedProducts = recommendationsClient.GetItemToItemRecommendations(model.ModeId, buildId, productsList, cortanaParameters.MaxRecosForRecommendationBuilds, 0);
+        #
+        #            // Parse reco list and populate upscale table
+        #            recommendedProductsEnumerator = recommendedProducts.GetEnumerator();
+        #
+        #            ttsBegin;
+        #
+        #            while (recommendedProductsEnumerator.MoveNext())
+        #            {
+        #                itemSetInfo = recommendedProductsEnumerator.get_Current();
+        #                if(CLRInterop::isNull(itemSetInfo))
+        #                {
+        #                    warning(strFmt("@SYP4863187", _salesTable.SalesId));
+        #                    continue;
+        #                }
+        #
+        #                itemInfoList = itemSetInfo.get_Items();
+        #                if(CLRInterop::isNull(itemInfoList))
+        #                {
+        #                    warning(strFmt("@SYP4863187", _salesTable.SalesId));
+        #                    continue;
+        #                }
+        #
+        #                // Get rating
+        #                nullableRatingType = itemSetInfo.get_Rating();
+        #                if(!CLRInterop::isNull(nullableRatingType))
+        #                {
+        #                    rating = nullableRatingType;
+        #                }
+        #
+        #                // Compute reasoning list
+        #                reasoningClrObj = itemSetInfo.get_Reasoning();
+        #                reasoningEnumerator = reasoningClrObj.GetEnumerator();
+        #                while(reasoningEnumerator.MoveNext())
+        #                {
+        #                    reasoning = reasoningEnumerator.get_Current();
+        #                    reasoningListBuilder.AppendLine(reasoning);
+        #                }
+        #
+        #                // Get item
+        #                itemInfoListEnumerator = itemInfoList.GetEnumerator();
+        #                while(itemInfoListEnumerator.MoveNext())
+        #                {
+        #                    itemInfo = itemInfoListEnumerator.get_Current();
+        #                    productRecIdStr = itemInfo.get_Id();
+        #                    productRefRecId = str2int64(productRecIdStr);
+        #                    inventTable = InventTable::findByProduct(productRefRecId);
+        #
+        #                    if(inventTable.RecId != 0)
+        #                    {
+        #                        select forUpdate * from upScaleListLocal where  upScaleListLocal.SalesId == _salesTable.Salesid &&
+        #                            upScaleListLocal.Party ==  party &&
+        #                            upScaleListLocal.ItemId == inventTable.ItemId;
+        #                        if(upScaleListLocal.RecId == 0)
+        #                        {
+        #                            upScaleList.clear();
+        #                            upScaleList.Party   = party;
+        #                            upScaleList.SalesId = _salesTable.SalesId;
+        #                            upScaleList.ItemId = inventTable.ItemId;
+        #                            upScaleList.ItemName = inventTable.itemName();
+        #                            upScaleList.Reasoning = reasoningListBuilder.ToString();
+        #                            upScaleList.Rating = rating;
+        #                            upScaleList.insert();
+        #                        }
+        #                        else
+        #                        {
+        #                            upScaleListLocal.ItemName = inventTable.itemName();
+        #                            upScaleListLocal.Reasoning = reasoningListBuilder.ToString();
+        #                            upScaleListLocal.Rating = rating;
+        #                            upScaleListLocal.update();
+        #                        }
+        #                    }
+        #                    else
+        #                    {
+        #                        warning(strFmt("@CIS3", _salesTable.SalesId));
+        #                    }
+        #                }
+        #            }
+        #
+        #            ttsCommit;
+        #        }
+        #    }
+        #    catch(Exception::Error)
+        #    {
+        #        errorMessage = con2Str(xSession::xppCallStack());
+        #        ex = new System.Exception(strFmt("@SYP4863194", errorMessage));
+        #        axTelemetryClient.SendException(ex);
+        #
+        #        error("@SYP4863189");
+        #    }
+        #    catch(Exception::CLRError)
+        #    {
+        #        ex = ClrInterop::getLastException();
+        #        if (ex != null)
+        #        {
+        #            ex = ex.get_InnerException();
+        #            if (ex != null)
+        #            {
+        #                axTelemetryClient.SendException(ex);
+        #                throw error(strFmt("@SYP4863190", ex.ToString()));
+        #            }
+        #        }
+        #    }
+        #}
+      ENDSOURCE
+      SOURCE #getRecommendationsForSalesOrderAndEntity
+        #public static void getRecommendationsForSalesOrderAndEntity(SalesId _salesId, DMFEntityName entity)
+        #{
+        #    #CIS
+        #    CortanaSageModels sageModel;
+        #    SalesTable salesTable;
+        #    CLRObject/*Microsoft.CortanaIntelligence.TelemetryWrapper.AXTelemetryClient*/ axTelemetryClient;
+        #    str errorMessage;
+        #    System.Exception ex;
+        #
+        #    try
+        #    {
+        #        axTelemetryClient = CortanaUtils::getTelemetryClient();
+        #
+        #        if(entity == '')
+        #        {
+        #            error("@SYP4863191");
+        #        }
+        #
+        #        salesTable = SalesTable::find(_salesId);
+        #        if(salesTable.RecId == 0)
+        #        {
+        #            throw error("@SYP4863192");
+        #        }
+        #
+        #        select firstOnly1 * from sageModel where sageModel.ModelEntityType == entity && sageModel.IsDefaultForEntityCategory == NoYes::Yes;
+        #        if(sageModel.RecId == 0)
+        #        {
+        #            error(strFmt("@SYP4863193", entity));
+        #        }
+        #
+        #        CortanaAppUtils::getRecommendationsForSalesOrder(salesTable, sageModel.ModelName);
+        #
+        #    }
+        #    catch(Exception::CLRError)
+        #    {
+        #        ex = ClrInterop::getLastException();
+        #        if (ex != null)
+        #        {
+        #            ex = ex.get_InnerException();
+        #            if (ex != null)
+        #            {
+        #                axTelemetryClient.SendException(ex);
+        #                error(ex.ToString());
+        #            }
+        #        }
+        #
+        #        throw error(strFmt("@SYP4863194", _salesId));
+        #    }
+        #    catch(Exception::Error)
+        #    {
+        #        errorMessage = con2Str(xSession::xppCallStack());
+        #        ex = new System.Exception(strFmt("@SYP4863194", errorMessage));
+        #        axTelemetryClient.SendException(ex);
+        #
+        #        throw error(strFmt("@SYP4863194", _salesId));
+        #    }
+        #}
+      ENDSOURCE
+      SOURCE #sendRecommendationMetric
+        #/// <summary>
+        #/// To send consumed recommendations metric to Microsoft to measure Cognitive Services Recommendations API performance and imrpove it.
+        #/// </summary>
+        #/// <param name="_salesId">
+        #/// Sales id for which to measure recommendations performance
+        #/// </param>
+        #/// <remarks>
+        #/// These metrics does not collect sensitve information of your organization.
+        #/// </remarks>
+        #public static void sendRecommendationMetric(SalesId _salesId)
+        #{
+        #    SalesTable                              salesTable;
+        #    CortanaRecommendationsUsed              consumedRecos;
+        #    SalesLine                               salesLine;
+        #    real                                    recommendedItemSalePrice, totalSalePrice, upscalePercent,
+        #                                            recoAddedCnt, recoRemovedCnt, recoAddedUniqueCnt, recoQuantity;
+        #    boolean                                 recoConsumed, recoRemoved;
+        #    CLRObject/*Microsoft.CortanaIntelligence.TelemetryWrapper.AXTelemetryClient*/ axTelemetryClient;
+        #    CLRObject/*Microsoft.CortanaIntelligence.TelemetryWrapper.AXTelemetryEvent*/ axTelemetryEvent;
+        #    ;
+        #
+        #    axTelemetryEvent = new CLRObject('Microsoft.CortanaIntelligence.TelemetryWrapper.AXTelemetryEvent', 'RecoConsumptionEvent');
+        #
+        #    // If invalid sales id, return
+        #    salesTable = SalesTable::find(_salesId);
+        #    if(salesTable.RecId == 0)
+        #    {
+        #        return;
+        #    }
+        #
+        #    while select SalesId, ItemId from consumedRecos where consumedRecos.SalesId == _salesId
+        #    {
+        #        //Look for all recommended items
+        #        recoConsumed = true;
+        #        recoRemoved = true;
+        #
+        #        while select SalesId, SalesPrice, QtyOrdered from salesLine
+        #            where salesLine.SalesId == _salesId
+        #            && salesLine.ItemId == consumedRecos.ItemId
+        #            && salesLine.QtyOrdered > 0
+        #        {
+        #            //Identify whether or not recommended items were consumed in sales order
+        #            recommendedItemSalePrice += salesLine.SalesPrice * salesLine.QtyOrdered;
+        #
+        #            recoRemoved = false;
+        #            recoAddedCnt++;
+        #            recoQuantity += salesLine.QtyOrdered;
+        #        }
+        #
+        #        if (recoRemoved)
+        #        {
+        #            recoRemovedCnt++;
+        #        }
+        #        else
+        #        {
+        #            recoAddedUniqueCnt++;
+        #        }
+        #    }
+        #
+        #
+        #    if (recoConsumed)
+        #    {
+        #        salesLine.clear();
+        #
+        #        while select SalesPrice, QtyOrdered from salesLine where salesLine.SalesId == _salesId
+        #        {
+        #            totalSalePrice += salesLine.SalesPrice * salesLine.QtyOrdered;
+        #        }
+        #
+        #        if (totalSalePrice > 0)
+        #        {
+        #            upscalePercent = recommendedItemSalePrice/totalSalePrice * 100;
+        #
+        #            axTelemetryEvent.AddMetric('UpscalePercent', real2double(upscalePercent)); //What was the improvement in sales using Microsoft Cognitive Services Recommendations API
+        #            axTelemetryEvent.AddMetric('NumRecoItemsAdded', real2double(recoAddedCnt)); //How many items were added by looking at recommendations
+        #            axTelemetryEvent.AddMetric('NumRecoItemsRemoved', real2double(recoRemovedCnt)); //How many recommended items were removed from sales order (these items were added earlier by looking at recommendations)
+        #            axTelemetryEvent.AddMetric('NumUniqueRecoItemsSold', real2double(recoAddedUniqueCnt)); //How many unique recommended items in this sales order
+        #            axTelemetryEvent.AddMetric('CountOfRecoSKUsSold', real2double(recoQuantity)); //How many unique recommeded items SKUs added in this sales order
+        #
+        #            //Send telemetry
+        #            axTelemetryClient = CortanaUtils::getTelemetryClient();
+        #            axTelemetryClient.SendEvent(axTelemetryEvent);
+        #        }
+        #    }
+        #}
+      ENDSOURCE
+      SOURCE #trackProductRecommendations
+        #/// <summary>
+        #/// This method records an item shown in recommendations when it is added to sales line. This implies that the recommended item has been consumed in a sales order.
+        #/// </summary>
+        #/// <param name="_salesId">
+        #/// Sales id for which an item is added
+        #/// </param>
+        #/// <param name="_itemId">
+        #/// A new item added in sales line
+        #/// </param>
+        #public static void trackProductRecommendations(SalesId _salesId, ItemId _itemId)
+        #{
+        #    CortanaOrderUpscaleList     upscaleTable;
+        #    CortanaRecommendationsUsed  consumedRecos;
+        #
+        #    select firstOnly1 SalesId, ItemId from upscaleTable
+        #        where upscaleTable.SalesId == _salesId && upscaleTable.ItemId == _itemId;
+        #    if (upscaleTable.RecId != 0)
+        #    {
+        #        // This item was shown in recommendations
+        #        select firstOnly1 SalesId, ItemId from consumedRecos
+        #            where consumedRecos.SalesId == _salesId && consumedRecos.ItemId == _itemId;
+        #
+        #        if (consumedRecos.RecId == 0)
+        #        {
+        #            //Not recorded earlier as consumed in sales order, hence record it
+        #
+        #            consumedRecos.SalesId = _salesId;
+        #            consumedRecos.ItemId  = _itemId;
+        #            consumedRecos.insert();
+        #        }
+        #    }
+        #}
+      ENDSOURCE
+    ENDMETHODS
+  ENDCLASS
+
+***Element: FRM
+
+; Microsoft Dynamics AX Forms unloaded
+; --------------------------------------------------------------------------------
+FRMVERSION 12
+
+FORM #CortanaRecommendationsListPage
+  PROPERTIES
+    Name                #CortanaRecommendationsListPage
+    Origin              #{59E4794E-4318-4D8C-BE3E-5B5C668BCD8F}
+  ENDPROPERTIES
+  
+  METHODS
+    SOURCE #classDeclaration
+      #public class FormRun extends ObjectRun
+      #{
+      #    FormRun     callerForm;
+      #    SalesId     salesId;
+      #}
+    ENDSOURCE
+    SOURCE #init
+      #public void init()
+      #{
+      #    SalesTable  salesTableBuffer;
+      #
+      #    if (!element.args() || !element.args().caller() && element.args().dataset() != tablenum(SalesTable))
+      #    {
+      #        throw error("@SYP4863195");
+      #    }
+      #
+      #    if (element.args())
+      #    {
+      #        if (this.args().record().TableId == tablenum(SalesTable))
+      #        {
+      #            // Get the caller's SalesTable record.
+      #            salesTableBuffer = this.args().record() as SalesTable;
+      #            salesId = salesTableBuffer.SalesId;
+      #        }
+      #
+      #        if (element.args().caller())
+      #        {
+      #            // Get the caller form.
+      #            callerForm = element.args().caller();
+      #        }
+      #    }
+      #
+      #    super();
+      #
+      #
+      #}
+    ENDSOURCE
+  ENDMETHODS
+  OBJECTBANK
+    PROPERTIES
+    ENDPROPERTIES
+    
+    DATASOURCE
+      OBJECTPOOL
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList
+          Table               #CortanaOrderUpscaleList
+          AllowEdit           #No
+          AllowCreate         #No
+          AllowDelete         #No
+          DelayActive         #No
+          InsertAtEnd         #No
+          InsertIfEmpty       #No
+        ENDPROPERTIES
+        
+        FIELDLIST
+        ENDFIELDLIST
+      ENDOBJECTPOOL
+      METHODS
+        SOURCE #init
+          #public void init()
+          #{
+          #    super();
+          #
+          #    this.queryBuildDataSource().addRange(fieldNum(CortanaOrderUpscaleList, SalesId)).value(queryValue(salesId));
+          #}
+        ENDSOURCE
+      ENDMETHODS
+    ENDDATASOURCE
+    DATASOURCE
+      OBJECTPOOL
+        PROPERTIES
+          Name                #SalesTable
+          Table               #SalesTable
+          AllowCreate         #No
+          AllowDelete         #No
+          InsertAtEnd         #No
+          InsertIfEmpty       #No
+        ENDPROPERTIES
+        
+        FIELDLIST
+        ENDFIELDLIST
+      ENDOBJECTPOOL
+      METHODS
+        SOURCE #init
+          #public void init()
+          #{
+          #    super();
+          #
+          #    this.queryBuildDataSource().addRange(fieldNum(SalesTable, SalesId)).value(salesId);
+          #}
+        ENDSOURCE
+      ENDMETHODS
+    ENDDATASOURCE
+  ENDOBJECTBANK
+  
+  REFERENCEDATASOURCES
+  ENDREFERENCEDATASOURCES
+  
+  JOINS
+  ENDJOINS
+  
+  PARTREFERENCES
+  ENDPARTREFERENCES
+  
+  DESIGN
+    PROPERTIES
+      Caption             #@CIS4
+      SetCompany          #No
+    ENDPROPERTIES
+    
+    CONTAINER
+      CONTROL GRID
+        PROPERTIES
+          Name                #Grid
+          ElementPosition     #1073741823
+          MultiSelect         #No
+          DataSource          #CortanaOrderUpscaleList
+          AlternateRowShading #Yes
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL REALEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_Rating
+          ElementPosition     #1789569705
+          HierarchyParent     #Grid
+          Label               #@SYP4863067
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #Rating
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL STRINGEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_ItemId
+          ElementPosition     #715827882
+          HierarchyParent     #Grid
+          Label               #@SYP4863066
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #ItemId
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL STRINGEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_ItemName
+          ElementPosition     #1073741823
+          HierarchyParent     #Grid
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #ItemName
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL STRINGEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_Reasoning
+          ElementPosition     #1431655764
+          HierarchyParent     #Grid
+          Label               #@SYP4863068
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #Reasoning
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+    ENDCONTAINER
+    
+  ENDDESIGN
+  
+  PERMISSIONS #Permissions
+    PROPERTIES
+    ENDPROPERTIES
+    
+    PERMISSIONSET #Read
+      PROPERTIES
+      ENDPROPERTIES
+      
+      FORM #Controls
+      ENDFORM
+      
+    TABLES #Tables
+    ENDTABLES
+    
+  SERVERMETHODS #Server Methods
+  ENDSERVERMETHODS
+  
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+PERMISSIONSET #Update
+  PROPERTIES
+  ENDPROPERTIES
+  
+  FORM #Controls
+  ENDFORM
+  
+TABLES #Tables
+ENDTABLES
+
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+PERMISSIONSET #Create
+  PROPERTIES
+  ENDPROPERTIES
+  
+  FORM #Controls
+  ENDFORM
+  
+TABLES #Tables
+ENDTABLES
+
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+PERMISSIONSET #Delete
+  PROPERTIES
+  ENDPROPERTIES
+  
+  FORM #Controls
+  ENDFORM
+  
+TABLES #Tables
+ENDTABLES
+
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+ENDPERMISSIONS
+
+ENDFORM
+
+
+***Element: FRM
+
+; Microsoft Dynamics AX Forms unloaded
+; --------------------------------------------------------------------------------
+FRMVERSION 12
+
+FORM #CortanaRecommendationsForm
+  PROPERTIES
+    Name                #CortanaRecommendationsForm
+    Origin              #{5ED76BFB-52AC-4F7F-AB29-0CE603E35FF2}
+  ENDPROPERTIES
+  
+  METHODS
+    SOURCE #classDeclaration
+      #public class FormRun extends ObjectRun
+      #{
+      #    SalesId _salesId;
+      #}
+    ENDSOURCE
+    SOURCE #init
+      #public void init()
+      #{
+      #    SalesTable salesTable;
+      #
+      #    super();
+      #
+      #    if (element.args())
+      #    {
+      #        if (this.args() && this.args().record() && this.args().record().TableId == tablenum(SalesTable))
+      #        {
+      #            // Get the caller's SalesTable record.
+      #            salesTable = this.args().record() as SalesTable;
+      #            _salesId = salesTable.SalesId;
+      #        }
+      #    }
+      #
+      #}
+    ENDSOURCE
+  ENDMETHODS
+  OBJECTBANK
+    PROPERTIES
+    ENDPROPERTIES
+    
+    DATASOURCE
+      OBJECTPOOL
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList
+          Table               #CortanaOrderUpscaleList
+          InsertAtEnd         #No
+          InsertIfEmpty       #No
+        ENDPROPERTIES
+        
+        FIELDLIST
+        ENDFIELDLIST
+      ENDOBJECTPOOL
+      METHODS
+        SOURCE #init
+          #public void init()
+          #{
+          #    super();
+          #
+          #    this.queryBuildDataSource().clearRanges();
+          #    if(_salesId != '')
+          #    {
+          #        this.queryBuildDataSource().addRange(fieldNum(CortanaOrderUpscaleList, SalesId)).value(queryValue(_salesId));
+          #    }
+          #}
+        ENDSOURCE
+      ENDMETHODS
+    ENDDATASOURCE
+  ENDOBJECTBANK
+  
+  REFERENCEDATASOURCES
+  ENDREFERENCEDATASOURCES
+  
+  JOINS
+  ENDJOINS
+  
+  PARTREFERENCES
+  ENDPARTREFERENCES
+  
+  DESIGN
+    PROPERTIES
+      Caption             #@CIS4
+      SetCompany          #No
+    ENDPROPERTIES
+    
+    CONTAINER
+      CONTROL GRID
+        PROPERTIES
+          Name                #Grid
+          ElementPosition     #1073741823
+          DataSource          #CortanaOrderUpscaleList
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL REALEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_Rating
+          ElementPosition     #1789569705
+          HierarchyParent     #Grid
+          Label               #@SYP4863067
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #Rating
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL STRINGEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_ItemId
+          ElementPosition     #715827882
+          HierarchyParent     #Grid
+          Label               #@SYP4863066
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #ItemId
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL STRINGEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_ItemName
+          ElementPosition     #1073741823
+          HierarchyParent     #Grid
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #ItemName
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+      CONTROL STRINGEDIT
+        PROPERTIES
+          Name                #CortanaOrderUpscaleList_Reasoning
+          ElementPosition     #1431655764
+          HierarchyParent     #Grid
+          Label               #@SYP4863068
+          DataSource          #CortanaOrderUpscaleList
+          DataField           #Reasoning
+        ENDPROPERTIES
+        
+        METHODS
+        ENDMETHODS
+      ENDCONTROL 
+      
+    ENDCONTAINER
+    
+  ENDDESIGN
+  
+  PERMISSIONS #Permissions
+    PROPERTIES
+    ENDPROPERTIES
+    
+    PERMISSIONSET #Read
+      PROPERTIES
+      ENDPROPERTIES
+      
+      FORM #Controls
+      ENDFORM
+      
+    TABLES #Tables
+    ENDTABLES
+    
+  SERVERMETHODS #Server Methods
+  ENDSERVERMETHODS
+  
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+PERMISSIONSET #Update
+  PROPERTIES
+  ENDPROPERTIES
+  
+  FORM #Controls
+  ENDFORM
+  
+TABLES #Tables
+ENDTABLES
+
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+PERMISSIONSET #Create
+  PROPERTIES
+  ENDPROPERTIES
+  
+  FORM #Controls
+  ENDFORM
+  
+TABLES #Tables
+ENDTABLES
+
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+PERMISSIONSET #Delete
+  PROPERTIES
+  ENDPROPERTIES
+  
+  FORM #Controls
+  ENDFORM
+  
+TABLES #Tables
+ENDTABLES
+
+SERVERMETHODS #Server Methods
+ENDSERVERMETHODS
+
+ASSOCIATEDFORMS #Associated Forms
+ENDASSOCIATEDFORMS
+
+ENDPERMISSIONSET
+
+ENDPERMISSIONS
+
+ENDFORM
+
+
+***Element: FTM
+
+; Microsoft Dynamics AX MENUITEM : CortanaRecommendationsFormPart unloaded
+; --------------------------------------------------------------------------------
+  VERSION 1
+  
+  MENUITEM #CortanaRecommendationsFormPart
+    Type: 1
+    PROPERTIES
+      Name                #CortanaRecommendationsFormPart
+      Label               #@CIS4
+      HelpText            #@CIS5
+      ObjectType          #FormPart
+      Object              #CortanaRecommendationsFormPart
+      Origin              #{F32E9E25-040D-4D8B-B278-B6F619204185}
+    ENDPROPERTIES
+    
+  ENDMENUITEM
+  
+
+***Element: FTM
+
+; Microsoft Dynamics AX MENUITEM : CortanaRecommendationsListPage unloaded
+; --------------------------------------------------------------------------------
+  VERSION 1
+  
+  MENUITEM #CortanaRecommendationsListPage
+    Type: 1
+    PROPERTIES
+      Name                #CortanaRecommendationsListPage
+      Label               #@CIS4
+      HelpText            #@CIS6
+      Object              #CortanaRecommendationsListPage
+      CopyCallerQuery     #No
+      Origin              #{0832572D-7B71-4BA1-BEE1-A764D382D869}
+    ENDPROPERTIES
+    
+  ENDMENUITEM
+  
+
+***Element: FTM
+
+; Microsoft Dynamics AX MENUITEM : CortanaRecommendationsForm unloaded
+; --------------------------------------------------------------------------------
+  VERSION 1
+  
+  MENUITEM #CortanaRecommendationsForm
+    Type: 1
+    PROPERTIES
+      Name                #CortanaRecommendationsForm
+      Label               #@CIS4
+      HelpText            #@CIS6
+      Object              #CortanaRecommendationsForm
+      CopyCallerQuery     #No
+      Origin              #{114AF732-3EB7-49A2-957D-54E7B5112DCA}
+    ENDPROPERTIES
+    
+  ENDMENUITEM
+  
+
+***Element: DBT
+
+; Microsoft Dynamics AX Table : CortanaOrderUpscaleList unloaded
+; --------------------------------------------------------------------------------
+  TABLEVERSION 1
+  
+  TABLE #CortanaOrderUpscaleList
+    EnforceFKRelation 1
+    PROPERTIES
+      Name                #CortanaOrderUpscaleList
+      Label               #@SYS4160096
+      TitleField1         #ItemName
+      TitleField2         #SalesId
+      CreateRecIdIndex    #Yes
+      SaveDataPerCompany  #No
+      PrimaryIndex        #SurrogateKey
+      ClusterIndex        #SurrogateKey
+      CreatedDateTime     #Yes
+      DeveloperDocumentation  #@CIS7
+      Origin              #{D293C89D-A264-45D8-8BC0-CE227A7B9B0E}
+    ENDPROPERTIES
+    
+    FIELDS
+      FIELD #ItemId
+        STRING
+        PROPERTIES
+          Name                #ItemId
+          Label               #@SYP4863066
+          Table               #CortanaOrderUpscaleList
+          Origin              #{EF3B8E8C-181B-41CD-B0CD-9484AA72E0A5}
+          ExtendedDataType    #ItemId
+          StringSize          #20
+        ENDPROPERTIES
+        
+      FIELD #ItemName
+        STRING
+        PROPERTIES
+          Name                #ItemName
+          Label               #@SYS319915
+          Table               #CortanaOrderUpscaleList
+          Origin              #{5281ADD4-8B4D-42DD-8797-C67B53575DDC}
+          ExtendedDataType    #ItemName
+          StringSize          #60
+        ENDPROPERTIES
+        
+      FIELD #Party
+        INT64
+        PROPERTIES
+          Name                #Party
+          Label               #@SYS302
+          Table               #CortanaOrderUpscaleList
+          Origin              #{81CEEA0D-F14D-4E2D-8367-D23B43A244FD}
+          ExtendedDataType    #DirPartyRecId
+        ENDPROPERTIES
+        
+      FIELD #Rating
+        REAL
+        PROPERTIES
+          Name                #Rating
+          Label               #@SYS27110
+          HelpText            #@CIS8
+          Table               #CortanaOrderUpscaleList
+          Origin              #{EA586505-D120-4B16-B8B8-8E44EF6A4A2E}
+          ExtendedDataType    #RealBase
+        ENDPROPERTIES
+        
+      FIELD #Reasoning
+        STRING
+        PROPERTIES
+          Name                #Reasoning
+          Label               #@CIS9
+          Table               #CortanaOrderUpscaleList
+          Origin              #{5F0B2643-5E66-407A-AFC9-E45929ADC807}
+          ExtendedDataType    #Str1260
+          StringSize          #1260
+        ENDPROPERTIES
+        
+      FIELD #SalesId
+        STRING
+        PROPERTIES
+          Name                #SalesId
+          Label               #@SYS4081954
+          Table               #CortanaOrderUpscaleList
+          Origin              #{0728066F-FCE5-4807-9E0C-0DA2CA794D52}
+          ExtendedDataType    #SalesId
+          StringSize          #20
+        ENDPROPERTIES
+        
+    ENDFIELDS
+    GROUPS
+      GROUP #AutoReport
+        PROPERTIES
+          Name                #AutoReport
+        ENDPROPERTIES
+        
+        GROUPFIELDS
+          #ItemName
+          #Party
+        ENDGROUPFIELDS
+      ENDGROUP
+      GROUP #DefaultGroup
+        PROPERTIES
+          Name                #DefaultGroup
+          Label               #@SYS331244
+        ENDPROPERTIES
+        
+        GROUPFIELDS
+          #ItemId
+          #ItemName
+          #Party
+          #Rating
+          #Reasoning
+          #SalesId
+        ENDGROUPFIELDS
+      ENDGROUP
+    ENDGROUPS
+    
+    INDICES
+      #ItemIdIdx
+      PROPERTIES
+        Name                #ItemIdIdx
+        Origin              #{188CECAD-4F3C-4678-9CB3-42714AA3651E}
+      ENDPROPERTIES
+      
+      INDEXFIELDS
+        #ItemId
+      ENDINDEXFIELDS
+      
+      #SalesIdx
+      PROPERTIES
+        Name                #SalesIdx
+        Origin              #{89D457A0-A2D2-4014-8C23-865C47B6F051}
+      ENDPROPERTIES
+      
+      INDEXFIELDS
+        #SalesId
+      ENDINDEXFIELDS
+      
+      #PartyIdx
+      PROPERTIES
+        Name                #PartyIdx
+        Origin              #{747579B7-E9F5-4392-A1FC-6364C789BDC4}
+      ENDPROPERTIES
+      
+      INDEXFIELDS
+        #Party
+      ENDINDEXFIELDS
+      
+    ENDINDICES
+    FULLTEXTINDICES
+    ENDFULLTEXTINDICES
+    REFERENCES
+      REFERENCE #DirParty
+        PROPERTIES
+          Name                #DirParty
+          Table               #DirPartyTable
+          Validate            #No
+          RelatedTableCardinality   #ExactlyOne
+          Cardinality         #ZeroMore
+          RelationshipType    #Association
+          UseDefaultRoleNames #Yes
+        ENDPROPERTIES
+        
+        FIELDREFERENCES
+          REFERENCETYPE NORMAL
+          PROPERTIES
+            Field               #Party
+            RelatedField        #RecId
+          ENDPROPERTIES
+          
+        ENDFIELDREFERENCES
+      ENDREFERENCE
+      REFERENCE #InventTable
+        PROPERTIES
+          Name                #InventTable
+          Table               #InventTable
+          Validate            #No
+          RelatedTableCardinality   #ZeroOne
+          Cardinality         #ZeroMore
+          RelationshipType    #Association
+          UseDefaultRoleNames #Yes
+        ENDPROPERTIES
+        
+        FIELDREFERENCES
+          REFERENCETYPE NORMAL
+          PROPERTIES
+            Field               #ItemId
+            RelatedField        #ItemId
+          ENDPROPERTIES
+          
+        ENDFIELDREFERENCES
+      ENDREFERENCE
+      REFERENCE #SalesTable
+        PROPERTIES
+          Name                #SalesTable
+          Table               #SalesTable
+          Validate            #No
+          RelatedTableCardinality   #ZeroOne
+          Cardinality         #ZeroMore
+          RelationshipType    #Association
+          UseDefaultRoleNames #Yes
+        ENDPROPERTIES
+        
+        FIELDREFERENCES
+          REFERENCETYPE NORMAL
+          PROPERTIES
+            Field               #SalesId
+            RelatedField        #SalesId
+          ENDPROPERTIES
+          
+        ENDFIELDREFERENCES
+      ENDREFERENCE
+    ENDREFERENCES
+    
+    DELETEACTIONS
+    ENDDELETEACTIONS
+    
+    METHODS
+    ENDMETHODS
+  ENDTABLE
+  
+
+***Element: DBT
+
+; Microsoft Dynamics AX Table : CortanaRecommendationsUsed unloaded
+; --------------------------------------------------------------------------------
+  TABLEVERSION 1
+  
+  TABLE #CortanaRecommendationsUsed
+    EnforceFKRelation 1
+    PROPERTIES
+      Name                #CortanaRecommendationsUsed
+      Label               #@CIS11
+      TitleField1         #ItemId
+      TitleField2         #SalesId
+      TableType           #InMemory
+      CreateRecIdIndex    #Yes
+      SaveDataPerCompany  #No
+      PrimaryIndex        #SurrogateKey
+      ClusterIndex        #SurrogateKey
+      DeveloperDocumentation  #@CIS10
+      Origin              #{46AB65AC-4232-400D-8D10-EB718545E497}
+    ENDPROPERTIES
+    
+    FIELDS
+      FIELD #ItemId
+        STRING
+        PROPERTIES
+          Name                #ItemId
+          Table               #CortanaRecommendationsUsed
+          Origin              #{911E70E9-50CB-48FD-ABA2-746957AAE4FE}
+          ExtendedDataType    #ItemId
+          StringSize          #20
+        ENDPROPERTIES
+        
+      FIELD #SalesId
+        STRING
+        PROPERTIES
+          Name                #SalesId
+          Table               #CortanaRecommendationsUsed
+          Origin              #{4AC93514-7BDA-4757-AAC7-3C609D9D1094}
+          ExtendedDataType    #SalesId
+          StringSize          #20
+        ENDPROPERTIES
+        
+    ENDFIELDS
+    GROUPS
+      GROUP #AutoReport
+        PROPERTIES
+          Name                #AutoReport
+        ENDPROPERTIES
+        
+        GROUPFIELDS
+          #ItemId
+          #SalesId
+        ENDGROUPFIELDS
+      ENDGROUP
+    ENDGROUPS
+    
+    INDICES
+      #CompositeIdx
+      PROPERTIES
+        Name                #CompositeIdx
+        Origin              #{9C0CCF3D-FF41-4583-AFF7-E4DB75E2DA37}
+      ENDPROPERTIES
+      
+      INDEXFIELDS
+        #ItemId
+        #SalesId
+      ENDINDEXFIELDS
+      
+    ENDINDICES
+    FULLTEXTINDICES
+    ENDFULLTEXTINDICES
+    REFERENCES
+      REFERENCE #InventTable
+        PROPERTIES
+          Name                #InventTable
+          Table               #InventTable
+          Validate            #No
+          RelatedTableCardinality   #ZeroOne
+          Cardinality         #ZeroMore
+          RelationshipType    #Association
+          UseDefaultRoleNames #Yes
+        ENDPROPERTIES
+        
+        FIELDREFERENCES
+          REFERENCETYPE PKFK
+          PROPERTIES
+            Field               #ItemId
+            RelatedField        #ItemId
+          ENDPROPERTIES
+          
+        ENDFIELDREFERENCES
+      ENDREFERENCE
+      REFERENCE #SalesTable
+        PROPERTIES
+          Name                #SalesTable
+          Table               #SalesTable
+          Validate            #No
+          RelatedTableCardinality   #ZeroOne
+          Cardinality         #ZeroMore
+          RelationshipType    #Association
+          UseDefaultRoleNames #Yes
+        ENDPROPERTIES
+        
+        FIELDREFERENCES
+          REFERENCETYPE PKFK
+          PROPERTIES
+            Field               #SalesId
+            RelatedField        #SalesId
+          ENDPROPERTIES
+          
+        ENDFIELDREFERENCES
+      ENDREFERENCE
+    ENDREFERENCES
+    
+    DELETEACTIONS
+    ENDDELETEACTIONS
+    
+    METHODS
+    ENDMETHODS
+  ENDTABLE
+  
+
+***Element: PRN
+
+; Microsoft Dynamics AX Project : CortanaIntelligenceApps_CallCenter unloaded
+; --------------------------------------------------------------------------------
+  PROJECTVERSION 2
+  
+  PROJECT #CortanaIntelligenceApps_CallCenter
+  PRIVATE
+  PROPERTIES
+    Name                #CortanaIntelligenceApps_CallCenter
+    Origin              #{8211C029-1881-4DB4-B2E9-EE4E7832B281}
+  ENDPROPERTIES
+  
+    PROJECTCLASS ProjectNode
+    GROUP #Security
+      PROPERTIES
+        Name                #Security
+        ProjectGroupType    #All
+        GroupMask           #
+        PreventEditProperties #No
+      ENDPROPERTIES
+      
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 134
+        UTILOBJECTID 0
+        NODETYPE 1628
+        NAME #CallCenterRecommendationsManage
+      ENDNODE
+      ENDGROUP
+      
+    GROUP #FormPart
+      PROPERTIES
+        Name                #FormPart
+        ProjectGroupType    #All
+        GroupMask           #
+        PreventEditProperties #No
+      ENDPROPERTIES
+      
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 82
+        UTILOBJECTID 0
+        NODETYPE 1431
+        NAME #CortanaRecommendationsFormPart
+      ENDNODE
+      ENDGROUP
+      
+    GROUP #Classes
+      PROPERTIES
+        Name                #Classes
+        ProjectGroupType    #All
+        GroupMask           #
+        PreventEditProperties #No
+      ENDPROPERTIES
+      
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 45
+        UTILOBJECTID 1026444
+        NODETYPE 329
+        NAME #CortanaAppUtils
+      ENDNODE
+      ENDGROUP
+      
+    GROUP #Forms
+      PROPERTIES
+        Name                #Forms
+        ProjectGroupType    #All
+        GroupMask           #
+        PreventEditProperties #No
+      ENDPROPERTIES
+      
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 11
+        UTILOBJECTID 0
+        NODETYPE 201
+        NAME #CortanaRecommendationsListPage
+      ENDNODE
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 11
+        UTILOBJECTID 0
+        NODETYPE 201
+        NAME #CortanaRecommendationsForm
+      ENDNODE
+      ENDGROUP
+      
+    GROUP #DisplayMenus
+      PROPERTIES
+        Name                #DisplayMenus
+        ProjectGroupType    #All
+        GroupMask           #
+        PreventEditProperties #No
+      ENDPROPERTIES
+      
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 1
+        UTILOBJECTID 0
+        NODETYPE 296
+        NAME #CortanaRecommendationsFormPart
+      ENDNODE
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 1
+        UTILOBJECTID 0
+        NODETYPE 296
+        NAME #CortanaRecommendationsListPage
+      ENDNODE
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 1
+        UTILOBJECTID 0
+        NODETYPE 296
+        NAME #CortanaRecommendationsForm
+      ENDNODE
+      ENDGROUP
+      
+    GROUP #Tables
+      PROPERTIES
+        Name                #Tables
+        ProjectGroupType    #All
+        GroupMask           #
+        PreventEditProperties #No
+      ENDPROPERTIES
+      
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 44
+        UTILOBJECTID 105132
+        NODETYPE 204
+        NAME #CortanaOrderUpscaleList
+      ENDNODE
+      BEGINNODE
+        FILETYPE 0
+        UTILTYPE 44
+        UTILOBJECTID 105133
+        NODETYPE 204
+        NAME #CortanaRecommendationsUsed
+      ENDNODE
+      ENDGROUP
+      
+  ENDPROJECT
+  
+
+***Element: END

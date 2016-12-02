@@ -1,0 +1,13 @@
+﻿@CIS0 Label files created on 11/01/2016
+By user Admin
+@CIS1 Manage call center product recommendations
+@CIS2 View product recommendations
+@CIS3 No product found for sales order '%1'
+@CIS4 Product recommendations
+@CIS5 List of recommended products for the sales order
+@CIS6 Display list of all product recommendations along with rating and reasoning
+@CIS7 This table stores all recommended items in the context of a sales order. Used in the call center's customer service or can also be used in other places.
+@CIS8 This field displays the rating of the product that how likely this item will be purchased given the other items in the sales order
+@CIS9 Reasoning
+@CIS10 This table stores a list of recommended items that were then purchased or removed in a sales order. Used to calculate the upscale percentage or find how effective the recommendations were.
+@CIS11 Recommendations consumed
